@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>College Attendance Pro</title>
+    <style>
+        :root { --primary: #2563eb; --secondary: #64748b; --success: #22c55e; --danger: #ef4444; --bg: #f8fafc; }
+        body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg); margin: 0; padding: 20px; color: #1e293b; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        h1 { text-align: center; color: var(--primary); }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; }
+        .tab-btn { padding: 10px 20px; cursor: pointer; border: none; background: none; font-weight: 600; color: var(--secondary); }
+        .tab-btn.active { color: var(--primary); border-bottom: 2px solid var(--primary); }
+        .section { display: none; }
+        .section.active { display: block; }
+        .form-group { margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
+        input, select { padding: 10px; border: 1px solid #ddd; border-radius: 6px; flex: 1; min-width: 150px; }
+        button { padding: 10px 15px; border: none; border-radius: 6px; cursor: pointer; transition: 0.2s; font-weight: 600; }
+        .btn-add { background: var(--primary); color: white; }
+        .btn-save { background: var(--success); color: white; width: 100%; margin-top: 20px; font-size: 1.1rem; }
+        .btn-export { background: #1d6f42; color: white; margin-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.9rem; }
+        th, td { padding: 12px; border: 1px solid #e2e8f0; text-align: left; }
+        th { background: #f1f5f9; }
+        .status-toggle { padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; cursor: pointer; border: 1px solid #ddd; width: 80px; }
+        .present { background: #dcfce7; color: #166534; }
+        .absent { background: #fee2e2; color: #991b1b; }
+        .btn-clear { background: var(--danger); color: white; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>College Attendance System</h1>
+
+    <div class="tabs">
+        <button class="tab-btn active" id="btn-setup" onclick="showSection('setup')">Configuration</button>
+        <button class="tab-btn" id="btn-attendance" onclick="showSection('attendance')">Mark Attendance</button>
+        <button class="tab-btn" id="btn-records" onclick="showSection('records')">View Records</button>
+    </div>
+
+    <div id="setup" class="section active">
+        <h3>Manage Students & Subjects</h3>
+        <div class="form-group">
+            <input type="text" id="studName" placeholder="Student Name">
+            <input type="text" id="studID" placeholder="Roll Number">
+            <button class="btn-add" onclick="addStudent()">Add Student</button>
+        </div>
+        <div class="form-group">
+            <input type="text" id="subName" placeholder="Subject Name">
+            <button class="btn-add" onclick="addSubject()">Add Subject</button>
+        </div>
+        <p><small>Note: All data is saved in your browser's Local Storage.</small></p>
+    </div>
+
+    <div id="attendance" class="section">
+        <h3>Daily Roll Call</h3>
+        <div class="form-group">
+            <select id="selectSubject"></select>
+            <input type="date" id="attendanceDate">
+        </div>
+        <table id="attendanceTable">
+            <thead>
+                <tr>
+                    <th>Roll No</th>
+                    <th>Name</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="attendanceBody"></tbody>
+        </table>
+        <button class="btn-save" onclick="saveFinalAttendance()">Save Attendance Data</button>
+    </div>
+
+    <div id="records" class="section">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h3>History Logs</h3>
+            <button class="btn-export" onclick="exportToCSV()">Export to Excel (CSV)</button>
+        </div>
+        <table id="logsTable">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Subject</th>
+                    <th>Name</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="logsBody"></tbody>
+        </table>
+        <button class="btn-clear" onclick="clearData()">Clear All Data</button>
+    </div>
+</div>
+
+<script>
+    // Database Initialization
+    let db = JSON.parse(localStorage.getItem('collegeDB')) || { students: [], subjects: [], logs: [] };
+
+    function saveData() {
+        localStorage.setItem('collegeDB', JSON.stringify(db));
+    }
+
+    function showSection(id) {
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        document.getElementById('btn-' + id).classList.add('active');
+        
+        if(id === 'attendance') loadAttendanceSheet();
+        if(id === 'records') loadRecords();
+    }
+
+    // --- Configuration Logic ---
+    function addStudent() {
+        const name = document.getElementById('studName').value;
+        const id = document.getElementById('studID').value;
+        if(!name || !id) return alert("Fill all fields");
+        db.students.push({ id, name });
+        saveData();
+        alert(`Student ${name} added!`);
+        document.getElementById('studName').value = '';
+        document.getElementById('studID').value = '';
+    }
+
+    function addSubject() {
+        const sub = document.getElementById('subName').value;
+        if(!sub) return alert("Enter subject name");
+        db.subjects.push(sub);
+        saveData();
+        alert(`Subject ${sub} added!`);
+        document.getElementById('subName').value = '';
+    }
+
+    // --- Attendance Logic ---
+    function loadAttendanceSheet() {
+        const subSelect = document.getElementById('selectSubject');
+        subSelect.innerHTML = db.subjects.length ? db.subjects.map(s => `<option value="${s}">${s}</option>`).join('') : '<option disabled>No Subjects Added</option>';
+        
+        const tbody = document.getElementById('attendanceBody');
+        tbody.innerHTML = db.students.map(s => `
+            <tr>
+                <td>${s.id}</td>
+                <td>${s.name}</td>
+                <td>
+                    <button class="status-toggle present" onclick="toggleStatus(this)">Present</button>
+                </td>
+            </tr>
+        `).join('');
+        document.getElementById('attendanceDate').valueAsDate = new Date();
+    }
+
+    function toggleStatus(btn) {
+        btn.innerText = (btn.innerText === "Present") ? "Absent" : "Present";
+        btn.classList.toggle('absent');
+        btn.classList.toggle('present');
+    }
+
+    function saveFinalAttendance() {
+        const subject = document.getElementById('selectSubject').value;
+        const date = document.getElementById('attendanceDate').value;
+        if(!subject || !date) return alert("Setup subjects first!");
+
+        const rows = document.querySelectorAll('#attendanceBody tr');
+        rows.forEach(row => {
+            const name = row.cells[1].innerText;
+            const status = row.cells[2].querySelector('button').innerText;
+            db.logs.push({ date, subject, name, status });
+        });
+
+        saveData();
+        alert("Attendance stored successfully!");
+        showSection('records');
+    }
+
+    // --- Record Logic ---
+    function loadRecords() {
+        const tbody = document.getElementById('logsBody');
+        tbody.innerHTML = db.logs.map(log => `
+            <tr>
+                <td>${log.date}</td>
+                <td>${log.subject}</td>
+                <td>${log.name}</td>
+                <td class="${log.status === 'Present' ? 'present' : 'absent'}">${log.status}</td>
+            </tr>
+        `).reverse().join('');
+    }
+
+    // --- CSV Export Logic ---
+    function exportToCSV() {
+        if(db.logs.length === 0) return alert("No records to export!");
+        
+        let csvContent = "data:text/csv;charset=utf-8,Date,Subject,Student Name,Status\n";
+        db.logs.forEach(log => {
+            csvContent += `${log.date},${log.subject},${log.name},${log.status}\n`;
+        });
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "attendance_report.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    function clearData() {
+        if(confirm("This will permanently delete students, subjects, and all logs. Proceed?")) {
+            localStorage.clear();
+            location.reload();
+        }
+    }
+</script>
+
+</body>
+</html>
